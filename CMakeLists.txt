@@ -12,6 +12,7 @@ pico_sdk_init()
 add_executable(desk
     main.c
 )
+pico_enable_stdio_usb(desk 1)
 
 target_link_libraries(desk pico_stdlib)
 
