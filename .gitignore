@@ -1,6 +1,5 @@
-generated
-CMakeDoxyfile.in
-CMakeDoxygenDefaults.cmake
+# Pico SDK
+build
 
 # Cmake
 CMakeLists.txt.user
