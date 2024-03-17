@@ -1,0 +1,67 @@
+.program keys
+
+.define PUBLIC DEBOUNCE_CYCLE_INSTRUCTIONS 68
+.define PUBLIC DEBOUNCE_CYCLES 32
+
+
+start:
+    // Read the input pins, 7 is the diff from the base pin number to the largest pin
+    // (non-consecutive pins used)
+    in pins, 4
+
+    // Check if the value changed from previous iteration
+    mov y isr
+    jmp x!=y changed
+
+    // If we're in debounce period, jump to the debounce check
+    jmp !osre debounce
+
+    // No change detected, clear isr and start from beginning
+    jmp reset
+
+changed:
+    mov x y       // Store new button states to x
+    mov osr null  // Clear osr counter
+    jmp reset
+
+debounce:
+    out null, 1   [31]     // Shift one bit from the debounce counter
+    jmp !osre reset [31]   // Counter not empty, so still debouncing
+
+emit:
+    // Debouncing done
+    push noblock
+
+reset:
+    // Clear isr
+    in null, 32
+
+
+% c-sdk {
+
+// This assumes that the pins are 
+
+static inline void keys_pio_init(
+    PIO pio, uint8_t sm, uint8_t offset, uint8_t first_pin, uint16_t clk_div)
+{
+    pio_sm_config conf = keys_program_get_default_config(offset);
+
+    // Set pins as inputs
+    pio_sm_set_consecutive_pindirs(pio, sm, first_pin, 4, false);
+    sm_config_set_in_pins(&conf, first_pin);
+    for (uint8_t i = 0; i < 4; i++) {
+        gpio_pull_up(first_pin + i);
+    }
+
+    // Shift to left
+    sm_config_set_in_shift(&conf, false, false, 32);
+
+    sm_config_set_clkdiv_int_frac(&conf, clk_div, 0);
+
+    pio_sm_init(pio, sm, offset, &conf);
+
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+
+%}
