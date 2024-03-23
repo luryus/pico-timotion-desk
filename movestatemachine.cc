@@ -54,7 +54,7 @@ uint8_t MoveStateMachine::get_send_msg() const
     switch (current_state_)
     {
     case State::Moving:
-        if (move_dir_.value() == Dir::Up)
+        if (move_dir_.value_or(Dir::Up) == Dir::Up)
         {
             return DESK_CMD_UP;
         }
@@ -114,7 +114,7 @@ void MoveStateMachine::update_desk_state(const DeskState &desk_state)
 
         if (target_height_.has_value())
         {
-            move_dir_ = (height > target_height_.value()) ? Dir::Down : Dir::Up;
+            move_dir_ = (height > *target_height_) ? Dir::Down : Dir::Up;
         }
         change_state(State::Moving);
     }
@@ -124,7 +124,9 @@ void MoveStateMachine::update_desk_state(const DeskState &desk_state)
         auto height = desk_state.height_cm();
         previous_height_ = current_height_;
         current_height_ = height;
-        last_height_change_= get_absolute_time();
+        if (*previous_height_ != *current_height_) {
+            last_height_change_= get_absolute_time();
+        }
         if (target_reached()) {
             stop();
         }
@@ -135,9 +137,11 @@ void MoveStateMachine::update_desk_state(const DeskState &desk_state)
         auto height = desk_state.height_cm();
         previous_height_ = current_height_;
         current_height_ = height;
-        last_height_change_ = get_absolute_time();
-        if (time_reached(delayed_by_ms(stopping_started_at_.value(), 500))
-            && time_reached(delayed_by_ms(last_height_change_.value(), 500)))
+        if (*previous_height_ != *current_height_) {
+            last_height_change_= get_absolute_time();
+        }
+        if (time_reached(delayed_by_ms(*stopping_started_at_, 500))
+            && time_reached(delayed_by_ms(*last_height_change_, 500)))
         {
             change_state(State::Idle);   
         }
@@ -152,10 +156,10 @@ bool MoveStateMachine::target_reached() const
         return false;
     }
 
-    if (move_dir_ == Dir::Up) {
-        return current_height_.value() >= target_height_.value();
+    if (*move_dir_ == Dir::Up) {
+        return *current_height_ >= *target_height_;
     } else {
-        return current_height_.value() <= target_height_.value();
+        return *current_height_ <= *target_height_;
     }
 }
 
@@ -198,29 +202,29 @@ bool MoveStateMachine::validate_state()
         auto dir = move_dir_.value();
         if (target_height_.has_value())
         {
-            if (dir == Dir::Up && current_height_.value() > target_height_.value())
+            if (dir == Dir::Up && *current_height_ > *target_height_)
             {
                 is_error = true;
                 LOGE("State:Moving: target height passed");
             }
-            else if (dir == Dir::Down && current_height_.value() < target_height_.value())
+            else if (dir == Dir::Down && *current_height_ < *target_height_)
             {
                 is_error = true;
                 LOGE("State:Moving: target height passed");
             }
+
+            if ((dir == Dir::Up && *previous_height_ > *target_height_) ||
+                (dir == Dir::Down && *previous_height_ < *target_height_))
+            {
+                is_error = true;
+                LOGE("State::Moving: desk moved in wrong direction");
+            }
         }
 
-        if ((dir == Dir::Up && previous_height_.value() > target_height_.value()) ||
-            (dir == Dir::Down && previous_height_.value() < target_height_.value()))
+        if (time_reached(delayed_by_ms(*last_height_change_, 2000)))
         {
             is_error = true;
-            LOGE("State::Moving: desk moved in wrong direction");
-        }
-
-        if (time_reached(delayed_by_ms(last_height_change_.value(), 1000)))
-        {
-            is_error = true;
-            LOGE("State::Moving: desk height not changed in one second");
+            LOGE("State::Moving: desk height not changed in 2s");
         }
 
         break;
