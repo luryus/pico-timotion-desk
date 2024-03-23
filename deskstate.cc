@@ -44,6 +44,14 @@ bool DeskState::is_awake() const
     return diff_us <= 2 * 1'000'000; // 2 seconds
 }
 
+uint32_t DeskState::state_age_ms() const
+{
+    if (!initialized_) {
+        return UINT32_MAX;
+    }
+    return static_cast<uint32_t>(absolute_time_diff_us(last_state_received_at_, get_absolute_time()) / 1000);
+}
+
 void DeskState::update(DeskCmd &cmd)
 {
     last_state_received_at_ = get_absolute_time();

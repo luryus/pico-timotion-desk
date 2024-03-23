@@ -15,7 +15,7 @@ file(GLOB U8G2_SRC_FILES CONFIGURE_DEPENDS ${U8G2_SRC_PATH}/*.c)
 
 
 set(SOURCE_FILES
-  main.cc deskstate.cc deskcmd.cc disp.cc
+  main.cc deskstate.cc deskcmd.cc disp.cc movestatemachine.cc
   ${U8G2_SRC_FILES}
 )
 

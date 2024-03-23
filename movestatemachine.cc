@@ -1,0 +1,346 @@
+#include "movestatemachine.hh"
+#include "log.hh"
+
+#include "pico/time.h"
+#include "deskstate.hh"
+
+#define DESK_CMD_UP 0x02
+#define DESK_CMD_DOWN 0x01
+#define DESK_CMD_STOP 0x00
+
+using State = MoveStateMachine::State;
+using Dir = MoveStateMachine::Dir;
+
+State MoveStateMachine::state() const
+{
+    return current_state_;
+}
+
+void MoveStateMachine::start_move(Dir dir)
+{
+    if (current_state_ != State::Idle)
+    {
+        LOGD("Cannot start a move, because not idle");
+        return;
+    }
+
+    move_dir_ = dir;
+    change_state(State::Initializing);
+}
+
+void MoveStateMachine::start_move(uint8_t target_height)
+{
+    if (current_state_ != State::Idle)
+    {
+        LOGD("Cannot start a move, because not idle");
+        return;
+    }
+
+    target_height_ = target_height;
+    change_state(State::Initializing);
+}
+
+std::optional<Dir> MoveStateMachine::is_moving() const
+{
+    if (current_state_ == State::Moving) {
+        return move_dir_;
+    }
+
+    return std::nullopt;
+}
+
+uint8_t MoveStateMachine::get_send_msg() const
+{
+    switch (current_state_)
+    {
+    case State::Moving:
+        if (move_dir_.value() == Dir::Up)
+        {
+            return DESK_CMD_UP;
+        }
+        else
+        {
+            return DESK_CMD_DOWN;
+        }
+
+    // In all other cases, return stop
+    case State::Idle:
+    case State::Initializing:
+    case State::Stopping:
+    case State::Recovering:
+        // TODO implement recovery mode
+    case State::Error:
+    default:
+        return DESK_CMD_STOP;
+    }
+}
+
+void MoveStateMachine::stop()
+{
+    if (current_state_ == State::Idle || current_state_ == State::Stopping || current_state_ == State::Error) {
+        LOGW("Cannot stop from the current state");
+        return;
+    }
+    LOGI("MoveStateMachine: stop requested");
+    stopping_started_at_ = get_absolute_time();
+    if (!last_height_change_.has_value()) {
+        last_height_change_ = nil_time;
+    }
+    change_state(State::Stopping);
+}
+
+bool MoveStateMachine::is_error() const {
+    return current_state_ == State::Error;
+}
+
+void MoveStateMachine::clear_error() {
+    change_state(State::Idle);
+}
+
+void MoveStateMachine::update_desk_state(const DeskState &desk_state)
+{
+    if (desk_state.state_age_ms() > 200) {
+        LOGD("MoveStateMachine: Received too old desk state, ignoring");
+        return;
+    }
+
+    if (current_state_ == State::Initializing)
+    {
+        auto height = desk_state.height_cm();
+        initial_height_ = height;
+        previous_height_ = height;
+        current_height_ = height;
+        last_height_change_ = get_absolute_time();
+
+        if (target_height_.has_value())
+        {
+            move_dir_ = (height > target_height_.value()) ? Dir::Down : Dir::Up;
+        }
+        change_state(State::Moving);
+    }
+
+    else if (current_state_ == State::Moving)
+    {
+        auto height = desk_state.height_cm();
+        previous_height_ = current_height_;
+        current_height_ = height;
+        last_height_change_= get_absolute_time();
+        if (target_reached()) {
+            stop();
+        }
+    }
+
+    else if (current_state_ == State::Stopping)
+    {
+        auto height = desk_state.height_cm();
+        previous_height_ = current_height_;
+        current_height_ = height;
+        last_height_change_ = get_absolute_time();
+        if (time_reached(delayed_by_ms(stopping_started_at_.value(), 500))
+            && time_reached(delayed_by_ms(last_height_change_.value(), 500)))
+        {
+            change_state(State::Idle);   
+        }
+    }
+
+    validate_state();
+}
+
+bool MoveStateMachine::target_reached() const
+{
+    if (!move_dir_.has_value() || !target_height_.has_value() || !current_height_.has_value()) {
+        return false;
+    }
+
+    if (move_dir_ == Dir::Up) {
+        return current_height_.value() >= target_height_.value();
+    } else {
+        return current_height_.value() <= target_height_.value();
+    }
+}
+
+bool MoveStateMachine::validate_state()
+{
+    bool is_error = false;
+    switch (current_state_)
+    {
+    case State::Idle:
+        reset_fields();
+        break;
+
+    case State::Initializing:
+        if (!(move_dir_.has_value() ^ target_height_.has_value()))
+        {
+            is_error = true;
+            LOGE("State::Initializing: either none or both of target height and move dir were set");
+        }
+        else if (initial_height_.has_value() || current_height_.has_value() || previous_height_.has_value())
+        {
+            is_error = true;
+            LOGE("State::Initializing: initial/current/previous height were set");
+        }
+        break;
+
+    case State::Moving:
+    {
+        if (!move_dir_.has_value())
+        {
+            is_error = true;
+            LOGE("State::Moving: dir not set");
+            break;
+        }
+        if (!current_height_.has_value() || !previous_height_.has_value() || !initial_height_.has_value() || !last_height_change_.has_value())
+        {
+            is_error = true;
+            LOGE("State::Moving: current/previous/initial height or last height change ts not set");
+            break;
+        }
+        auto dir = move_dir_.value();
+        if (target_height_.has_value())
+        {
+            if (dir == Dir::Up && current_height_.value() > target_height_.value())
+            {
+                is_error = true;
+                LOGE("State:Moving: target height passed");
+            }
+            else if (dir == Dir::Down && current_height_.value() < target_height_.value())
+            {
+                is_error = true;
+                LOGE("State:Moving: target height passed");
+            }
+        }
+
+        if ((dir == Dir::Up && previous_height_.value() > target_height_.value()) ||
+            (dir == Dir::Down && previous_height_.value() < target_height_.value()))
+        {
+            is_error = true;
+            LOGE("State::Moving: desk moved in wrong direction");
+        }
+
+        if (time_reached(delayed_by_ms(last_height_change_.value(), 1000)))
+        {
+            is_error = true;
+            LOGE("State::Moving: desk height not changed in one second");
+        }
+
+        break;
+    }
+
+    case State::Stopping:
+        if (!stopping_started_at_.has_value() || !last_height_change_.has_value()) {
+            is_error = true;
+            LOGE("State::Stopping: Required timestamps were not set");
+        }
+        break;
+
+    case State::Recovering:
+        is_error = true;
+        LOGE("State::Recovering: currently not supported");
+        break;
+    case State::Error:
+        break;
+    }
+
+    if (is_error)
+    {
+        change_state(State::Error);
+    }
+    return is_error;
+}
+
+void MoveStateMachine::change_state(State new_state)
+{
+    const char *state_str = nullptr;
+    switch (new_state)
+    {
+    case State::Idle:
+        state_str = "Idle";
+        break;
+    case State::Initializing:
+        state_str = "Initializing";
+        break;
+    case State::Moving:
+        state_str = "Moving";
+        break;
+    case State::Stopping:
+        state_str = "Stopping";
+        break;
+    case State::Recovering:
+        state_str = "Recovering";
+        break;
+    case State::Error:
+        state_str = "Error";
+        break;
+    default:
+        state_str = "???";
+        break;
+    }
+
+    if (new_state == current_state_)
+    {
+        LOGD("change_state called unnecessarily: already in state %s", state_str);
+        return;
+    }
+
+    LOGI("Moving to state: %s", state_str);
+    current_state_ = new_state;
+    validate_state();
+}
+
+void MoveStateMachine::reset_fields()
+{
+    initial_height_ = std::nullopt;
+    target_height_ = std::nullopt;
+    current_height_ = std::nullopt;
+    previous_height_ = std::nullopt;
+    last_height_change_ = std::nullopt;
+    stopping_started_at_ = std::nullopt;
+    move_dir_ = std::nullopt;
+}
+
+const char* MoveStateMachine::state_str(State state) {
+    const char *state_str = nullptr;
+    switch (state)
+    {
+    case State::Idle:
+        state_str = "Idle";
+        break;
+    case State::Initializing:
+        state_str = "Initializing";
+        break;
+    case State::Moving:
+        state_str = "Moving";
+        break;
+    case State::Stopping:
+        state_str = "Stopping";
+        break;
+    case State::Recovering:
+        state_str = "Recovering";
+        break;
+    case State::Error:
+        state_str = "Error";
+        break;
+    default:
+        state_str = "???";
+        break;
+    }
+    return state_str;
+}
+
+
+const char* MoveStateMachine::dir_str(Dir dir) {
+    const char *dir_str = nullptr;
+    switch (dir)
+    {
+    case Dir::Up:
+        dir_str = "Up";
+        break;
+    case Dir::Down:
+        dir_str = "Down";
+        break;
+    default:
+        dir_str = "???";
+        break;
+    }
+    return dir_str;
+}

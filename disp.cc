@@ -60,7 +60,7 @@ void Display::draw()
     state = state_;
     mutex_exit(&mutex_);
 
-    bool should_be_on = state.desk_state.is_display_on() || !state.desk_state.initialized() || state.waking_desk;
+    bool should_be_on = state.desk_state.state_age_ms() < 400 || !state.desk_state.initialized() || state.waking_desk;
     if (!should_be_on)
     {
         set_sleep_state(true);
@@ -91,14 +91,20 @@ void Display::draw()
         auto height_str = string_format("%d", state.desk_state.height_cm()).value_or("");
         u8g2_DrawStr(U8G2, 12, 32, height_str.c_str());
 
+        u8g2_SetFont(U8G2, u8g2_font_t0_11_mr);
+        u8g2_DrawStr(U8G2, 60, 12, MoveStateMachine::state_str(state.move_state));
+        if (state.move_dir.has_value()) {
+            u8g2_DrawStr(U8G2, 100, 12, MoveStateMachine::dir_str(state.move_dir.value()));
+        }
+        /*
         if (state.desk_state.is_store_completed())
         {
-            u8g2_DrawStr(U8G2, 64, 16, "Store OK!");
+            u8g2_DrawStr(U8G2, 64, 32, "Store OK!");
         }
         else if (state.desk_state.is_waiting_store())
         {
-            u8g2_DrawStr(U8G2, 64, 16, "Store where?");
-        }
+            u8g2_DrawStr(U8G2, 64, 32, "Store where?");
+        }*/
     }
 
     u8g2_SendBuffer(U8G2);

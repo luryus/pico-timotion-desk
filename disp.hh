@@ -1,11 +1,14 @@
 #ifndef _DISP_HH
 #define _DISP_HH
 
+#include <optional>
+
 #include "hardware/i2c.h"
 #include "pico/sync.h"
 #include "u8g2.h"
 
 #include "deskstate.hh"
+#include "movestatemachine.hh"
 
 class Display
 {
@@ -13,6 +16,8 @@ class Display
 public:
     struct DisplayState {
         DeskState desk_state;
+        MoveStateMachine::State move_state;
+        std::optional<MoveStateMachine::Dir> move_dir;
         bool waking_desk;
     };
 

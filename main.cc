@@ -14,6 +14,7 @@
 #include "deskstate.hh"
 #include "disp.hh"
 #include "log.hh"
+#include "movestatemachine.hh"
 
 #define GPIO_DESK_RX 5
 #define GPIO_DESK_TX 4
@@ -187,6 +188,7 @@ int main()
 
     MainLoopState main_loop_state = MainLoopState::Init, prev_main_loop_state = MainLoopState::Init;
     absolute_time_t init_time;
+    MoveStateMachine move_state_machine;
 
     for (;;)
     {
@@ -243,22 +245,31 @@ int main()
             gpio_put(GPIO_LED, false);
             critical_section_exit(&desk_rx_cmd_crit_section);
 
-            auto desk_cmd = pico_keys_to_desk_cmd(keys_now);
-            if (desk_cmd != 0x00 && !desk_state.is_awake())
-            {
+            if (keys_now != 0 && !desk_state.is_awake()) {
                 LOGD("Trying to wake desk");
                 wake_desk();
             }
 
             if (desk_state.is_awake())
             {
-                desk_send_cmd(desk_cmd);
+                move_state_machine.update_desk_state(desk_state);
+                if (keys_now == 0 && move_state_machine.is_moving()) {
+                    move_state_machine.stop();
+                } else if (move_state_machine.state() == MoveStateMachine::State::Idle && keys_now == KEY_MASK_DOWN) {
+                    move_state_machine.start_move(MoveStateMachine::Dir::Down);
+                } else if (move_state_machine.state() == MoveStateMachine::State::Idle && keys_now == KEY_MASK_UP) {
+                    move_state_machine.start_move(MoveStateMachine::Dir::Up);
+                }
+
+                desk_send_cmd(move_state_machine.get_send_msg());
             }
         }
         }
 
         display.post_display_state(Display::DisplayState { 
             desk_state,
+            move_state_machine.state(),
+            move_state_machine.is_moving(),
             (main_loop_state == MainLoopState::Init || main_loop_state == MainLoopState::WaitingDeskInit )
         });
 

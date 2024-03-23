@@ -17,6 +17,7 @@ public:
     bool is_store_completed() const;
     bool is_display_on() const;
     bool is_awake() const;
+    uint32_t state_age_ms() const;
 
 private:
     bool initialized_ = false;
