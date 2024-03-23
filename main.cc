@@ -4,6 +4,7 @@
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "pico/sync.h"
+#include "pico/multicore.h"
 #include "hardware/gpio.h"
 #include "hardware/uart.h"
 #include "hardware/clocks.h"
@@ -11,6 +12,7 @@
 #include "keys.pio.h"
 #include "deskcmd.hh"
 #include "deskstate.hh"
+#include "disp.hh"
 #include "log.hh"
 
 #define GPIO_DESK_RX 5
@@ -39,6 +41,7 @@ static int keys_sm = 0;
 static DeskCmd desk_rx_cmd;
 static critical_section_t desk_rx_cmd_crit_section;
 static volatile uint8_t last_read_keys = 0;
+static Display display;
 
 enum class MainLoopState : uint8_t
 {
@@ -119,6 +122,11 @@ void key_debounce_init()
     irq_set_exclusive_handler(PIO0_IRQ_0, keys_isr);
 }
 
+void core1_entry()
+{
+    display.run();
+}
+
 void wake_desk()
 {
     gpio_put(GPIO_DESK_SLEEP, false);
@@ -172,6 +180,8 @@ int main()
     // Wait a tiny bit so that serial comms / console have time to wake up
     sleep_ms(1000);
     LOGI("## Pico Desk Controller ##");
+
+    multicore_launch_core1(core1_entry);
 
     DeskState desk_state;
 
@@ -247,7 +257,12 @@ int main()
         }
         }
 
-        auto next_iter = delayed_by_ms(main_loop_start, 100);
+        display.post_display_state(Display::DisplayState { 
+            desk_state,
+            (main_loop_state == MainLoopState::Init || main_loop_state == MainLoopState::WaitingDeskInit )
+        });
+
+        auto next_iter = delayed_by_ms(main_loop_start, 50);
         sleep_until(next_iter);
     }
 

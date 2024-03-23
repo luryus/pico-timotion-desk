@@ -13,16 +13,16 @@ public:
 
     uint8_t height_cm() const;
     bool initialized() const;
-    bool is_moving() const;
-    std::optional<uint8_t> storing_mem_slot() const;
+    bool is_waiting_store() const;
+    bool is_store_completed() const;
+    bool is_display_on() const;
     bool is_awake() const;
 
 private:
     bool initialized_ = false;
 
+    uint8_t status_ = 0;
     uint8_t height_cm_ = 0;
-    bool is_moving_ = false;
-    uint8_t storing_mem_slot_ = 0;
 
     absolute_time_t last_state_received_at_ = nil_time;
 };
