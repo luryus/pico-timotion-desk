@@ -1,9 +1,11 @@
 #include <cstdio>
 #include <iostream>
 #include <string>
+#include <array>
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "pico/sync.h"
+#include "pico/flash.h"
 #include "pico/multicore.h"
 #include "hardware/gpio.h"
 #include "hardware/uart.h"
@@ -15,6 +17,8 @@
 #include "disp.hh"
 #include "log.hh"
 #include "movestatemachine.hh"
+#include "buttonsm.hh"
+#include "memslots.hh"
 
 #define GPIO_DESK_RX 5
 #define GPIO_DESK_TX 4
@@ -125,6 +129,7 @@ void key_debounce_init()
 
 void core1_entry()
 {
+    flash_safe_execute_core_init();
     display.run();
 }
 
@@ -161,15 +166,6 @@ void desk_send_cmd(uint8_t cmd)
     uart_tx_wait_blocking(DESK_UART);
 }
 
-static uint8_t pico_keys_to_desk_cmd(uint8_t pico_keys)
-{
-    if ((pico_keys & 0x08) != 0)
-    {
-        return 0x40 | (pico_keys & ~0x08);
-    }
-    return pico_keys;
-}
-
 int main()
 {
     stdio_init_all();
@@ -177,6 +173,7 @@ int main()
     key_debounce_init();
     desk_uart_init();
     desk_waker_init();
+    display.init();
 
     // Wait a tiny bit so that serial comms / console have time to wake up
     sleep_ms(1000);
@@ -184,11 +181,22 @@ int main()
 
     multicore_launch_core1(core1_entry);
 
+    if (memslots_validate()) {
+        auto memslots_data = memslots_get_all();
+        LOGI("Stored mem slots: [0]: %d, [1]: %d, [2]: %d, [3]: %d",
+            memslots_data[0].value_or(0), memslots_data[1].value_or(0),
+            memslots_data[2].value_or(0), memslots_data[3].value_or(0));
+    } else {
+        LOGW("Mem slot data in flash invalid");
+        memslots_reset();
+    }
+
     DeskState desk_state;
 
     MainLoopState main_loop_state = MainLoopState::Init, prev_main_loop_state = MainLoopState::Init;
     absolute_time_t init_time;
     MoveStateMachine move_state_machine;
+    std::array<ButtonSm, 4> buttons;
 
     for (;;)
     {
@@ -236,6 +244,20 @@ int main()
         case MainLoopState::Main:
         {
             uint8_t keys_now = last_read_keys;
+            bool any_button_down = false;
+            for (size_t i = 0; i < buttons.size(); i++)
+            {
+                buttons[i].tick(static_cast<bool>(keys_now & 0x01));
+                keys_now >>= 1;
+
+                auto event = buttons[i].event();
+                any_button_down |= (event != ButtonSm::ButtonEvent::Idle);
+
+                if (event != ButtonSm::ButtonEvent::Idle)
+                {
+                    LOGD("Button %u: %u", i, (uint8_t)event);
+                };
+            }
 
             critical_section_enter_blocking(&desk_rx_cmd_crit_section);
             if (desk_rx_cmd.is_ready())
@@ -245,7 +267,8 @@ int main()
             gpio_put(GPIO_LED, false);
             critical_section_exit(&desk_rx_cmd_crit_section);
 
-            if (keys_now != 0 && !desk_state.is_awake()) {
+            if (any_button_down && !desk_state.is_awake())
+            {
                 LOGD("Trying to wake desk");
                 wake_desk();
             }
@@ -253,12 +276,28 @@ int main()
             if (desk_state.is_awake())
             {
                 move_state_machine.update_desk_state(desk_state);
-                if (keys_now == 0 && move_state_machine.is_moving()) {
+                auto up_event = buttons[0].event();
+                auto down_event = buttons[1].event();
+                auto m1_event = buttons[2].event();
+                if (up_event == ButtonSm::ButtonEvent::Idle && down_event == ButtonSm::ButtonEvent::Idle && move_state_machine.is_manual_moving())
+                {
                     move_state_machine.stop();
-                } else if (move_state_machine.state() == MoveStateMachine::State::Idle && keys_now == KEY_MASK_DOWN) {
-                    move_state_machine.start_move(MoveStateMachine::Dir::Down);
-                } else if (move_state_machine.state() == MoveStateMachine::State::Idle && keys_now == KEY_MASK_UP) {
-                    move_state_machine.start_move(MoveStateMachine::Dir::Up);
+                }
+                else if (move_state_machine.state() == MoveStateMachine::State::Idle && down_event == ButtonSm::ButtonEvent::LongPressDown)
+                {
+                    move_state_machine.start_manual_move(MoveStateMachine::Dir::Down);
+                }
+                else if (move_state_machine.state() == MoveStateMachine::State::Idle && up_event == ButtonSm::ButtonEvent::LongPressDown)
+                {
+                    move_state_machine.start_manual_move(MoveStateMachine::Dir::Up);
+                }
+                else if (move_state_machine.is_auto_moving() && any_button_down)
+                {
+                    move_state_machine.stop();
+                }
+                else if (move_state_machine.state() == MoveStateMachine::State::Idle && m1_event == ButtonSm::ButtonEvent::ShortPress)
+                {
+                    move_state_machine.start_auto_move(100);
                 }
 
                 desk_send_cmd(move_state_machine.get_send_msg());
@@ -266,12 +305,11 @@ int main()
         }
         }
 
-        display.post_display_state(Display::DisplayState { 
+        display.post_display_state(Display::DisplayState{
             desk_state,
             move_state_machine.state(),
-            move_state_machine.is_moving(),
-            (main_loop_state == MainLoopState::Init || main_loop_state == MainLoopState::WaitingDeskInit )
-        });
+            move_state_machine.is_manual_moving(),
+            (main_loop_state == MainLoopState::Init || main_loop_state == MainLoopState::WaitingDeskInit)});
 
         auto next_iter = delayed_by_ms(main_loop_start, 50);
         sleep_until(next_iter);

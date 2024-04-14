@@ -16,7 +16,7 @@ State MoveStateMachine::state() const
     return current_state_;
 }
 
-void MoveStateMachine::start_move(Dir dir)
+void MoveStateMachine::start_manual_move(Dir dir)
 {
     if (current_state_ != State::Idle)
     {
@@ -28,7 +28,7 @@ void MoveStateMachine::start_move(Dir dir)
     change_state(State::Initializing);
 }
 
-void MoveStateMachine::start_move(uint8_t target_height)
+void MoveStateMachine::start_auto_move(uint8_t target_height)
 {
     if (current_state_ != State::Idle)
     {
@@ -40,14 +40,24 @@ void MoveStateMachine::start_move(uint8_t target_height)
     change_state(State::Initializing);
 }
 
-std::optional<Dir> MoveStateMachine::is_moving() const
+std::optional<Dir> MoveStateMachine::is_manual_moving() const
 {
-    if (current_state_ == State::Moving) {
+    if (current_state_ == State::Moving && !target_height_.has_value()) {
         return move_dir_;
     }
 
     return std::nullopt;
 }
+
+std::optional<Dir> MoveStateMachine::is_auto_moving() const
+{
+    if (current_state_ == State::Moving && target_height_.has_value()) {
+        return move_dir_;
+    }
+
+    return std::nullopt;
+}
+
 
 uint8_t MoveStateMachine::get_send_msg() const
 {

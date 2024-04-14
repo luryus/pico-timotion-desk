@@ -24,13 +24,14 @@ public:
 
     State state() const;
 
-    void start_move(uint8_t target_height);
-    void start_move(Dir dir);
+    void start_auto_move(uint8_t target_height);
+    void start_manual_move(Dir dir);
     void stop();
     bool is_error() const;
     void clear_error();
 
-    std::optional<Dir> is_moving() const;
+    std::optional<Dir> is_auto_moving() const;
+    std::optional<Dir> is_manual_moving() const;
 
     void update_desk_state(const DeskState& desk_state);
 

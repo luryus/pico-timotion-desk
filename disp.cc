@@ -18,6 +18,9 @@ Display::Display(uint8_t sda, uint8_t scl, i2c_inst_t *i2c)
     : sda_(sda), scl_(scl), i2c_(i2c)
 {
     mutex_init(&mutex_);
+}
+
+void Display::init() {
     u8g2_SetUserPtr(U8G2, this);
     u8g2_Setup_ssd1306_i2c_128x32_univision_f(
         U8G2, U8G2_R2, pico_u8g2_byte_i2c, pico_u8g2_delay_cb);
@@ -26,17 +29,26 @@ Display::Display(uint8_t sda, uint8_t scl, i2c_inst_t *i2c)
     u8g2_SetPowerSave(U8G2, false);
 
     u8g2_ClearDisplay(U8G2);
+    initialized_ = true;
 }
 
 void Display::post_display_state(DisplayState state)
 {
+    if (!initialized_) {
+        return;
+    }
+
     mutex_enter_blocking(&mutex_);
     state_ = state;
     mutex_exit(&mutex_);
 }
 
-[[noreturn]] void Display::run()
+void Display::run()
 {
+    if (!initialized_) {
+        return;
+    }
+
     absolute_time_t frame_ts = get_absolute_time();
     for (;;)
     {

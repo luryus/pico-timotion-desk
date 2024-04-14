@@ -22,9 +22,10 @@ public:
     };
 
     Display(uint8_t sda = 12, uint8_t scl = 13, i2c_inst_t* i2c = i2c0);
+    void init();
     void post_display_state(DisplayState state);
 
-    [[noreturn]] void run();
+    void run();
 
 private:
     void draw();
@@ -41,6 +42,8 @@ private:
     uint8_t sda_;
     uint8_t scl_;
     i2c_inst_t* i2c_;
+
+    bool initialized_ = false;
 };
 
 #endif
