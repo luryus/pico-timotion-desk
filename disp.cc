@@ -23,7 +23,7 @@ Display::Display(uint8_t sda, uint8_t scl, i2c_inst_t *i2c)
 void Display::init() {
     u8g2_SetUserPtr(U8G2, this);
     u8g2_Setup_ssd1306_i2c_128x32_univision_f(
-        U8G2, U8G2_R2, pico_u8g2_byte_i2c, pico_u8g2_delay_cb);
+        U8G2, U8G2_R0, pico_u8g2_byte_i2c, pico_u8g2_delay_cb);
 
     u8g2_InitDisplay(U8G2);
     u8g2_SetPowerSave(U8G2, false);

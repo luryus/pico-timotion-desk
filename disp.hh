@@ -21,7 +21,7 @@ public:
         bool waking_desk;
     };
 
-    Display(uint8_t sda = 12, uint8_t scl = 13, i2c_inst_t* i2c = i2c0);
+    Display(uint8_t sda = 16, uint8_t scl = 17, i2c_inst_t* i2c = i2c0);
     void init();
     void post_display_state(DisplayState state);
 

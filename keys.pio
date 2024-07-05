@@ -5,8 +5,7 @@
 
 
 start:
-    // Read the input pins, 7 is the diff from the base pin number to the largest pin
-    // (non-consecutive pins used)
+    // Read the input pins
     in pins, 4
 
     // Check if the value changed from previous iteration
@@ -39,7 +38,7 @@ reset:
 
 % c-sdk {
 
-// This assumes that the pins are 
+// This assumes that the pins are consecutive
 
 static inline void keys_pio_init(
     PIO pio, uint8_t sm, uint8_t offset, uint8_t first_pin, uint16_t clk_div)

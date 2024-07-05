@@ -22,9 +22,9 @@
 
 #define GPIO_DESK_RX 5
 #define GPIO_DESK_TX 4
-#define GPIO_DESK_SLEEP 2
+#define GPIO_DESK_SLEEP 28
 
-#define GPIO_KEY_0 16
+#define GPIO_KEY_0 18
 
 #define GPIO_LED 25
 

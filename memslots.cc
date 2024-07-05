@@ -11,7 +11,7 @@
 #define SLOT(num) (PERSISTENT_FLASH_START + 8 + (num * 4))
 
 
-static const uint8_t MIN_STORED_HEIGHT = 0x40;
+static const uint8_t MIN_STORED_HEIGHT = 0x40; 
 static const uint8_t MAX_STORED_HEIGHT = 0x80;
 static const uint8_t EMPTY_STORED_HEIGHT = 0x00;
 
