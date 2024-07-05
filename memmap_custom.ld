@@ -22,9 +22,9 @@
 */
 
 /* Reserve space for storing the preset heights in flash.
- * 2k ought to be enough
+ * 4k is Pico's flash sector size, so that's the minimum we can really use here.
  */
-_PERSISTENT_FLASH_LENGTH = 2k;
+_PERSISTENT_FLASH_LENGTH = 4k;
 
 MEMORY
 {

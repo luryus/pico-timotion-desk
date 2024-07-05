@@ -21,7 +21,7 @@ void ButtonSm::tick(bool is_pressed)
         }
         else if (time_in_current_state_ms() > 500)
         {
-            next(State::LongPress);
+            next(State::LongPressStart);
         }
         break;
     case State::Release1Pending:
@@ -44,13 +44,23 @@ void ButtonSm::tick(bool is_pressed)
             next(State::DoubleLongPress);
         }
         break;
+    
+    case State::LongPressStart:
+        next(State::LongPress);
+        goto long_press_end;
+    case State::DoubleLongPressStart:
+        next(State::DoubleLongPress);
+        goto long_press_end;
+
     case State::LongPress:
     case State::DoubleLongPress:
+    long_press_end:
         if (!is_pressed)
         {
             next(State::Idle);
         }
         break;
+
     case State::ShortPress:
     case State::DoublePress:
         next(State::Idle);
@@ -68,8 +78,12 @@ ButtonEvent ButtonSm::event() const
         return ButtonEvent::DoublePress;
     case State::LongPress:
         return ButtonEvent::LongPressDown;
+    case State::LongPressStart:
+        return ButtonEvent::LongPressStart;
     case State::DoubleLongPress:
         return ButtonEvent::DoubleLongPressDown;
+    case State::DoubleLongPressStart:
+        return ButtonEvent::DoubleLongPressStart;
     case State::Idle:
     case State::Press1Pending:
     case State::Press2Pending:

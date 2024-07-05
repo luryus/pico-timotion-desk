@@ -36,11 +36,6 @@
 #define DESK_CMD_DOWN 0x01
 #define DESK_CMD_STOP 0x00
 
-#define KEY_MASK_UP 0x01
-#define KEY_MASK_DOWN 0x02
-#define KEY_MASK_MEM_1 0x04
-#define KEY_MASK_MEM_2 0x08
-
 static int keys_sm = 0;
 
 static DeskCmd desk_rx_cmd;
@@ -54,6 +49,14 @@ enum class MainLoopState : uint8_t
     WaitingDeskInit,
     Main
 };
+
+enum Buttons {
+    Mem1 = 0,
+    Mem0 = 1,
+    Down = 2,
+    Up = 3,
+};
+static const int BUTTONS_COUNT = 4;
 
 void desk_serial_rx_isr()
 {
@@ -182,10 +185,7 @@ int main()
     multicore_launch_core1(core1_entry);
 
     if (memslots_validate()) {
-        auto memslots_data = memslots_get_all();
-        LOGI("Stored mem slots: [0]: %d, [1]: %d, [2]: %d, [3]: %d",
-            memslots_data[0].value_or(0), memslots_data[1].value_or(0),
-            memslots_data[2].value_or(0), memslots_data[3].value_or(0));
+        memslots_log();
     } else {
         LOGW("Mem slot data in flash invalid");
         memslots_reset();
@@ -196,7 +196,7 @@ int main()
     MainLoopState main_loop_state = MainLoopState::Init, prev_main_loop_state = MainLoopState::Init;
     absolute_time_t init_time;
     MoveStateMachine move_state_machine;
-    std::array<ButtonSm, 4> buttons;
+    std::array<ButtonSm, BUTTONS_COUNT> buttons;
 
     for (;;)
     {
@@ -276,9 +276,10 @@ int main()
             if (desk_state.is_awake())
             {
                 move_state_machine.update_desk_state(desk_state);
-                auto up_event = buttons[0].event();
-                auto down_event = buttons[1].event();
-                auto m1_event = buttons[2].event();
+                auto up_event = buttons[Buttons::Up].event();
+                auto down_event = buttons[Buttons::Down].event();
+                auto m0_event = buttons[Buttons::Mem0].event();
+                auto m1_event = buttons[Buttons::Mem1].event();
                 if (up_event == ButtonSm::ButtonEvent::Idle && down_event == ButtonSm::ButtonEvent::Idle && move_state_machine.is_manual_moving())
                 {
                     move_state_machine.stop();
@@ -295,9 +296,27 @@ int main()
                 {
                     move_state_machine.stop();
                 }
+                else if (move_state_machine.state() == MoveStateMachine::State::Idle && m0_event == ButtonSm::ButtonEvent::ShortPress)
+                {
+                    if (auto h = memslots_get(0)) {
+                        move_state_machine.start_auto_move(*h);
+                    }
+                }
                 else if (move_state_machine.state() == MoveStateMachine::State::Idle && m1_event == ButtonSm::ButtonEvent::ShortPress)
                 {
-                    move_state_machine.start_auto_move(100);
+                    if (auto h = memslots_get(1)) {
+                        move_state_machine.start_auto_move(*h);
+                    }
+                }
+                else if (move_state_machine.state() == MoveStateMachine::State::Idle && m0_event == ButtonSm::ButtonEvent::LongPressStart) {
+                    memslots_set(0, desk_state.height_cm());
+                    LOGI("Stored height %d to slot 0", desk_state.height_cm());
+                    memslots_log();
+                }
+                else if (move_state_machine.state() == MoveStateMachine::State::Idle && m1_event == ButtonSm::ButtonEvent::LongPressStart) {
+                    memslots_set(1, desk_state.height_cm());
+                    LOGI("Stored height %d to slot 1", desk_state.height_cm());
+                    memslots_log();
                 }
 
                 desk_send_cmd(move_state_machine.get_send_msg());

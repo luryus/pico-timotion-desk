@@ -7,12 +7,16 @@ class ButtonSm {
 
 public:
     enum class State : uint8_t {
-        Idle, Press1Pending, LongPress, Release1Pending,
-        ShortPress, Press2Pending, DoubleLongPress, DoublePress,
+        Idle, Press1Pending, LongPressStart, LongPress,
+        Release1Pending, ShortPress, Press2Pending,
+        DoubleLongPressStart, DoubleLongPress, DoublePress,
     };
 
     enum class ButtonEvent : uint8_t {
-        Idle, ShortPress, DoublePress, LongPressDown, DoubleLongPressDown
+        Idle,
+        ShortPress, DoublePress,
+        LongPressStart, LongPressDown,
+        DoubleLongPressStart, DoubleLongPressDown
     };
 
     void tick(bool is_pressed);

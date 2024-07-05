@@ -39,6 +39,10 @@ bool memslots_validate() {
 }
 
 static void write_flash_core(void* param) {
+    // Erase our sector, because that's how flash works
+    // If the flash will be used for any other purposes later, this needs to be refactored
+    flash_range_erase(PERSISTENT_FLASH_OFFSET, 1 * FLASH_SECTOR_SIZE);
+    // Then write the data (only the first page for now)
     flash_range_program(PERSISTENT_FLASH_OFFSET, (const uint8_t*) param, 1 * FLASH_PAGE_SIZE);
 }
 
@@ -96,4 +100,16 @@ void memslots_set(uint8_t slot, uint8_t height)
     auto data = memslots_get_all();
     data[slot] = height;
     write_flash(data);
+}
+
+void memslots_log() {
+    if (!memslots_validate()) {
+        LOGW("Memslots invalid");
+        return;
+    }
+
+    auto memslots_data = memslots_get_all();
+    LOGI("Stored mem slots: [0]: %d, [1]: %d, [2]: %d, [3]: %d",
+        memslots_data[0].value_or(0), memslots_data[1].value_or(0),
+        memslots_data[2].value_or(0), memslots_data[3].value_or(0));
 }

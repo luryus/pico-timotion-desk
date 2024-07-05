@@ -22,6 +22,10 @@ extern "C" {
 #define LOGI(format, ...) __LOG(CYAN "INF" RESET, format, ##__VA_ARGS__)
 #define LOGD(format, ...) __LOG(GRAY "DBG", format RESET, ##__VA_ARGS__)
 
+#define LOG_DUMP(p, len) {\
+        for (int __i = 0; __i < (len); __i++) { printf("%02x ", (p)[__i]); } printf("\n"); \
+    }
+
 }
 
 #endif // _LOG_H
