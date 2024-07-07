@@ -1,6 +1,7 @@
 #include "movestatemachine.hh"
 #include "log.hh"
 
+#include <cstdlib>
 #include "pico/time.h"
 #include "deskstate.hh"
 
@@ -28,7 +29,7 @@ void MoveStateMachine::start_manual_move(Dir dir)
     change_state(State::Initializing);
 }
 
-void MoveStateMachine::start_auto_move(uint8_t target_height)
+void MoveStateMachine::start_auto_move(uint8_t target_height, uint8_t current_height)
 {
     if (current_state_ != State::Idle)
     {
@@ -36,7 +37,30 @@ void MoveStateMachine::start_auto_move(uint8_t target_height)
         return;
     }
 
-    target_height_ = target_height;
+    // Adjust the target because the table does not stop instantly
+    // If we move a long height diff, the table will accelerate to full speed
+    // and overshoot
+
+    int8_t dh = current_height > target_height ? 1 : -1;
+    int8_t abs_diff = current_height > target_height
+        ? current_height - target_height
+        : target_height - current_height;
+
+    uint8_t adjusted_height = target_height;
+
+    if (abs_diff >= 9) {
+        adjusted_height += 3 * dh;
+    } else if (abs_diff >= 5) {
+        adjusted_height += 2 * dh;
+    } else if (abs_diff >= 3) {
+        adjusted_height += dh;
+    }
+
+    if (target_height != adjusted_height) {
+        LOGI("Adjusted target to %d to counter overshoot", adjusted_height);
+    }
+
+    target_height_ = adjusted_height;
     change_state(State::Initializing);
 }
 
@@ -47,6 +71,11 @@ std::optional<Dir> MoveStateMachine::is_manual_moving() const
     }
 
     return std::nullopt;
+}
+
+std::optional<uint8_t> MoveStateMachine::target_height() const
+{
+    return target_height_;
 }
 
 std::optional<Dir> MoveStateMachine::is_auto_moving() const

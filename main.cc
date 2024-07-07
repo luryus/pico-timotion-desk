@@ -65,7 +65,7 @@ void desk_serial_rx_isr()
         gpio_put(GPIO_LED, true);
         uint8_t c;
         uart_read_blocking(DESK_UART, &c, 1);
-        desk_rx_cmd.update(c);
+        desk_rx_cmd.receive(c);
     }
 }
 
@@ -139,9 +139,14 @@ void core1_entry()
 void wake_desk()
 {
     gpio_put(GPIO_DESK_SLEEP, false);
-    sleep_ms(1500);
+    for (int i = 0; i < 14; i++) {
+        if (desk_rx_cmd.is_ready()) {
+            break;
+        }
+        sleep_ms(100);
+    }
+    
     gpio_put(GPIO_DESK_SLEEP, true);
-    sleep_ms(500);
 }
 
 void desk_send_cmd(uint8_t cmd)
@@ -165,7 +170,7 @@ void desk_send_cmd(uint8_t cmd)
 
     uint8_t msg[5] = {0xD8, 0xD8, 0x66, cmd, cmd};
     LOGD("Sending %02x", cmd);
-    uart_write_blocking(DESK_UART, msg, 5);
+    uart_write_blocking(DESK_UART, msg, 5); 
     uart_tx_wait_blocking(DESK_UART);
 }
 
@@ -197,6 +202,7 @@ int main()
     absolute_time_t init_time;
     MoveStateMachine move_state_machine;
     std::array<ButtonSm, BUTTONS_COUNT> buttons;
+    bool ignore_key_events_until_all_keys_idle = false;
 
     for (;;)
     {
@@ -206,6 +212,8 @@ int main()
             LOGD("State transition: %02x -> %02x", (uint8_t)prev_main_loop_state, (uint8_t)main_loop_state);
         }
         prev_main_loop_state = main_loop_state;
+
+        std::optional<Display::Notification> timed_notif = std::nullopt;
 
         switch (main_loop_state)
         {
@@ -228,6 +236,8 @@ int main()
                 main_loop_state = MainLoopState::Main;
                 LOGI("Got initial message from desk, starting main loop");
                 ready = true;
+            } else if (auto err = desk_rx_cmd.last_error()) {
+                LOGW("Desk rx error: %d", (uint8_t) *err);
             }
             gpio_put(GPIO_LED, false);
             critical_section_exit(&desk_rx_cmd_crit_section);
@@ -244,19 +254,34 @@ int main()
         case MainLoopState::Main:
         {
             uint8_t keys_now = last_read_keys;
+
+            // True if any button is currently pressed. This is determined separately from
+            // key events so that we get smaller latencies for stopping the desk from moving
             bool any_button_down = false;
+
             for (size_t i = 0; i < buttons.size(); i++)
             {
-                buttons[i].tick(static_cast<bool>(keys_now & 0x01));
+                auto key_down = static_cast<bool>(keys_now & 0x01);
+                buttons[i].tick(key_down);
                 keys_now >>= 1;
+                any_button_down |= key_down;
+            }
 
-                auto event = buttons[i].event();
-                any_button_down |= (event != ButtonSm::ButtonEvent::Idle);
-
-                if (event != ButtonSm::ButtonEvent::Idle)
+            if (ignore_key_events_until_all_keys_idle)
+            {
+                if (any_button_down)
                 {
-                    LOGD("Button %u: %u", i, (uint8_t)event);
-                };
+                    // A key is still pressed. Transform all key events to Idle
+                    for (auto& btn : buttons)
+                    {
+                        btn.force_idle();
+                    }
+                }
+                else
+                {
+                    // All keys are idle. Unset the ignore flag and proceed with normal operations
+                    ignore_key_events_until_all_keys_idle = false;
+                }
             }
 
             critical_section_enter_blocking(&desk_rx_cmd_crit_section);
@@ -270,6 +295,7 @@ int main()
             if (any_button_down && !desk_state.is_awake())
             {
                 LOGD("Trying to wake desk");
+                ignore_key_events_until_all_keys_idle = true;
                 wake_desk();
             }
 
@@ -280,7 +306,14 @@ int main()
                 auto down_event = buttons[Buttons::Down].event();
                 auto m0_event = buttons[Buttons::Mem0].event();
                 auto m1_event = buttons[Buttons::Mem1].event();
-                if (up_event == ButtonSm::ButtonEvent::Idle && down_event == ButtonSm::ButtonEvent::Idle && move_state_machine.is_manual_moving())
+                
+                auto manual_dir = move_state_machine.is_manual_moving();
+
+                if (up_event == ButtonSm::ButtonEvent::Idle && manual_dir && *manual_dir == MoveStateMachine::Dir::Up)
+                {
+                    move_state_machine.stop();
+                }
+                else if (down_event == ButtonSm::ButtonEvent::Idle && manual_dir && *manual_dir == MoveStateMachine::Dir::Down)
                 {
                     move_state_machine.stop();
                 }
@@ -294,29 +327,36 @@ int main()
                 }
                 else if (move_state_machine.is_auto_moving() && any_button_down)
                 {
+                    ignore_key_events_until_all_keys_idle = true;
                     move_state_machine.stop();
                 }
                 else if (move_state_machine.state() == MoveStateMachine::State::Idle && m0_event == ButtonSm::ButtonEvent::ShortPress)
                 {
                     if (auto h = memslots_get(0)) {
-                        move_state_machine.start_auto_move(*h);
+                        move_state_machine.start_auto_move(*h, desk_state.height_cm());
                     }
                 }
                 else if (move_state_machine.state() == MoveStateMachine::State::Idle && m1_event == ButtonSm::ButtonEvent::ShortPress)
                 {
                     if (auto h = memslots_get(1)) {
-                        move_state_machine.start_auto_move(*h);
+                        move_state_machine.start_auto_move(*h, desk_state.height_cm());
                     }
                 }
                 else if (move_state_machine.state() == MoveStateMachine::State::Idle && m0_event == ButtonSm::ButtonEvent::LongPressStart) {
                     memslots_set(0, desk_state.height_cm());
                     LOGI("Stored height %d to slot 0", desk_state.height_cm());
+                    timed_notif = Display::Notification(Display::Notification::Type::Stored, 0);
                     memslots_log();
                 }
                 else if (move_state_machine.state() == MoveStateMachine::State::Idle && m1_event == ButtonSm::ButtonEvent::LongPressStart) {
                     memslots_set(1, desk_state.height_cm());
                     LOGI("Stored height %d to slot 1", desk_state.height_cm());
+                    timed_notif = Display::Notification(Display::Notification::Type::Stored, 1);
                     memslots_log();
+                }
+                else if (move_state_machine.is_error() && any_button_down) {
+                    ignore_key_events_until_all_keys_idle = true;
+                    move_state_machine.clear_error();
                 }
 
                 desk_send_cmd(move_state_machine.get_send_msg());
@@ -324,11 +364,22 @@ int main()
         }
         }
 
+
+        if (!timed_notif) {
+            timed_notif = display.current_display_state().timed_notification;
+        }
+        auto move_dir = move_state_machine.is_manual_moving();
+        if (!move_dir) {
+            move_dir = move_state_machine.is_auto_moving();
+        }
         display.post_display_state(Display::DisplayState{
             desk_state,
             move_state_machine.state(),
-            move_state_machine.is_manual_moving(),
-            (main_loop_state == MainLoopState::Init || main_loop_state == MainLoopState::WaitingDeskInit)});
+            move_dir,
+            move_state_machine.target_height(),
+            (main_loop_state == MainLoopState::Init || main_loop_state == MainLoopState::WaitingDeskInit),
+            timed_notif,    
+        });
 
         auto next_iter = delayed_by_ms(main_loop_start, 50);
         sleep_until(next_iter);

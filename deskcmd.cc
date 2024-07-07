@@ -2,27 +2,37 @@
 
 #include "log.hh"
 
-bool DeskCmd::update(uint8_t data)
+
+DeskCmd::DeskCmd()
 {
-    if (len_ >= 6)
-    {
-        return false;
+    queue_init(&rx_queue_, sizeof(uint8_t), 24);
+}
+
+DeskCmd::~DeskCmd()
+{
+    queue_free(&rx_queue_);
+}
+
+bool DeskCmd::receive(uint8_t data)
+{
+    return queue_try_add(&rx_queue_, &data);
+}
+
+void DeskCmd::flush_rx_queue()
+{
+    uint8_t item;
+    while (queue_try_remove(&rx_queue_, &item)) {
+        bytes_.try_push_back(item);
     }
 
-    bytes_[len_++] = data;
-
-    if (!validate())
-    {
-        reset();
-        return false;
+    while (!bytes_.empty() && !validate()) {
+        bytes_.pop_front();
     }
-
-    return true;
 }
 
 void DeskCmd::reset()
 {
-    len_ = 0;
+    bytes_.clear();
 }
 
 std::optional<DeskCmd::Error> DeskCmd::last_error() const
@@ -32,25 +42,26 @@ std::optional<DeskCmd::Error> DeskCmd::last_error() const
 
 bool DeskCmd::validate()
 {
-    if (len_ >= 1 && bytes_[0] != 0x98)
+    auto len = bytes_.size();
+    if (len >= 1 && bytes_.at(0).value() != 0x98)
     {
         last_error_ = DeskCmd::Error::HeaderBytesInvalid;
         return false;
     }
 
-    if (len_ >= 2 && bytes_[1] != 0x98)
+    if (len >= 2 && bytes_.at(1).value() != 0x98)
     {
         last_error_ = DeskCmd::Error::HeaderBytesInvalid;
         return false;
     }
 
-    if (len_ >= 4 && bytes_[2] != bytes_[3])
+    if (len >= 4 && bytes_.at(2).value() != bytes_.at(3).value())
     {
         last_error_ = DeskCmd::Error::MiddleBytesDiffer;
         return false;
     }
 
-    if (len_ >= 6 && bytes_[4] != bytes_[5])
+    if (len >= 6 && bytes_.at(4).value() != bytes_.at(5).value())
     {
         last_error_ = DeskCmd::Error::LastBytesDiffer;
         return false;
@@ -59,20 +70,26 @@ bool DeskCmd::validate()
     return true;
 }
 
-bool DeskCmd::is_ready() const
+bool DeskCmd::is_ready()
 {
-    return len_ == 6;
+    flush_rx_queue();
+    return bytes_.size() >= 6;
 }
 
-std::optional<std::pair<uint8_t, uint8_t>> DeskCmd::get_and_reset()
+std::optional<std::pair<uint8_t, uint8_t>> DeskCmd::take()
 {
     if (!is_ready())
     {
         return std::nullopt;
     }
 
-    auto res = std::pair(bytes_[2], bytes_[4]);
-    reset();
+    auto res = std::pair(bytes_.at(2).value(), bytes_.at(4).value());
+    
+    // Remove first 6 bytes
+    for (auto i = 0; i < 6; i++) {
+        bytes_.pop_front();
+    }
+
     last_error_ = std::nullopt;
     return res;
 }

@@ -56,7 +56,7 @@ void DeskState::update(DeskCmd &cmd)
 {
     last_state_received_at_ = get_absolute_time();
 
-    if (auto msg = cmd.get_and_reset())
+    if (auto msg = cmd.take())
     {
         initialized_ = true;
         auto status = msg->first;

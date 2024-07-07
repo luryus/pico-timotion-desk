@@ -35,6 +35,7 @@ target_link_libraries(desk
     pico_stdlib
     pico_multicore
     pico_flash
+    pico_util
     hardware_pio
     hardware_i2c
     hardware_exception

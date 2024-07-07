@@ -68,6 +68,11 @@ void ButtonSm::tick(bool is_pressed)
     }
 }
 
+void ButtonSm::force_idle()
+{
+    next(State::Idle);
+}
+
 ButtonEvent ButtonSm::event() const
 {
     switch (state_)

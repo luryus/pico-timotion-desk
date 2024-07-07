@@ -1,0 +1,503 @@
+STARTFONT 2.1
+COMMENT
+COMMENT  Copyright (c) 2008, Your Name Here
+COMMENT
+COMMENT  License to copy and distribute for both commercial and
+COMMENT  non-commercial use is herby granted, provided this notice
+COMMENT  is preserved.
+COMMENT
+COMMENT  yourEmail@your.Domain
+COMMENT  http://web.server/YourWebPageIfYouHaveOne/
+COMMENT  Whatever else you want to put here
+COMMENT
+COMMENT  Produced with bdfedit, a tcl/tk font editing program
+COMMENT  written by Thomas A. Fine
+FONT DeskFontNum32
+SIZE 32 96 96
+FONTBOUNDINGBOX 19 32 0 -32
+STARTPROPERTIES 11
+FOUNDRY ""
+FAMILY_NAME ""
+WEIGHT_NAME "Medium"
+SLANT "R"
+SETWIDTH_NAME "Normal"
+SPACING "c"
+CHARSET_REGISTRY "ISO-8859"
+CHARSET_ENCODING "1"
+COPYRIGHT "Designer of this font retains full rights under the law"
+FONT_ASCENT  0
+FONT_DESCENT 32
+ENDPROPERTIES
+CHARS 16
+STARTCHAR 043
+ENCODING 43
+SWIDTH 406 0
+DWIDTH 13 0
+BBX 12 12 2 -22
+BITMAP
+0f00
+0f00
+0f00
+0f00
+fff0
+fff0
+fff0
+fff0
+0f00
+0f00
+0f00
+0f00
+ENDCHAR
+STARTCHAR 044
+ENCODING 44
+SWIDTH 218 0
+DWIDTH 7 0
+BBX 4 4 2 -31
+BITMAP
+f0
+f0
+f0
+f0
+ENDCHAR
+STARTCHAR 045
+ENCODING 45
+SWIDTH 406 0
+DWIDTH 13 0
+BBX 9 3 2 -18
+BITMAP
+ff80
+ff80
+ff80
+ENDCHAR
+STARTCHAR 046
+ENCODING 46
+SWIDTH 218 0
+DWIDTH 7 0
+BBX 4 4 2 -31
+BITMAP
+f0
+f0
+f0
+f0
+ENDCHAR
+STARTCHAR 047
+ENCODING 47
+SWIDTH 406 0
+DWIDTH 13 0
+BBX 0 0 0 0
+BITMAP
+ENDCHAR
+STARTCHAR 048
+ENCODING 48
+SWIDTH 593 0
+DWIDTH 19 0
+BBX 15 32 2 -32
+BITMAP
+fffe
+fffe
+fffe
+fffe
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+fffe
+fffe
+fffe
+fffe
+ENDCHAR
+STARTCHAR 049
+ENCODING 49
+SWIDTH 593 0
+DWIDTH 19 0
+BBX 4 32 13 -32
+BITMAP
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+f0
+ENDCHAR
+STARTCHAR 050
+ENCODING 50
+SWIDTH 593 0
+DWIDTH 19 0
+BBX 15 32 2 -32
+BITMAP
+fffe
+fffe
+fffe
+fffe
+fffe
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+fffe
+fffe
+fffe
+fffe
+fffe
+f000
+f000
+f000
+f000
+f000
+f000
+f000
+f000
+f000
+fffe
+fffe
+fffe
+fffe
+ENDCHAR
+STARTCHAR 051
+ENCODING 51
+SWIDTH 593 0
+DWIDTH 19 0
+BBX 15 32 2 -32
+BITMAP
+fffe
+fffe
+fffe
+fffe
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+3ffe
+3ffe
+3ffe
+3ffe
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+fffe
+fffe
+fffe
+fffe
+ENDCHAR
+STARTCHAR 052
+ENCODING 52
+SWIDTH 593 0
+DWIDTH 19 0
+BBX 15 32 2 -32
+BITMAP
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+fffe
+fffe
+fffe
+fffe
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+ENDCHAR
+STARTCHAR 053
+ENCODING 53
+SWIDTH 593 0
+DWIDTH 19 0
+BBX 15 32 2 -32
+BITMAP
+fffe
+fffe
+fffe
+fffe
+f000
+f000
+f000
+f000
+f000
+f000
+f000
+f000
+f000
+f000
+fffe
+fffe
+fffe
+fffe
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+fffe
+fffe
+fffe
+fffe
+ENDCHAR
+STARTCHAR 054
+ENCODING 54
+SWIDTH 593 0
+DWIDTH 19 0
+BBX 15 32 2 -32
+BITMAP
+fffe
+fffe
+fffe
+fffe
+e000
+e000
+e000
+e000
+e000
+e000
+e000
+e000
+e000
+e000
+fffe
+fffe
+fffe
+fffe
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+fffe
+fffe
+fffe
+fffe
+ENDCHAR
+STARTCHAR 055
+ENCODING 55
+SWIDTH 593 0
+DWIDTH 19 0
+BBX 15 32 2 -32
+BITMAP
+fffe
+fffe
+fffe
+fffe
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+ENDCHAR
+STARTCHAR 056
+ENCODING 56
+SWIDTH 593 0
+DWIDTH 19 0
+BBX 15 32 2 -32
+BITMAP
+fffe
+fffe
+fffe
+fffe
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+fffe
+fffe
+fffe
+fffe
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+fffe
+fffe
+fffe
+fffe
+ENDCHAR
+STARTCHAR 057
+ENCODING 57
+SWIDTH 593 0
+DWIDTH 19 0
+BBX 15 32 2 -32
+BITMAP
+fffe
+fffe
+fffe
+fffe
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+f01e
+fffe
+fffe
+fffe
+fffe
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+001e
+fffe
+fffe
+fffe
+fffe
+ENDCHAR
+STARTCHAR 058
+ENCODING 58
+SWIDTH 218 0
+DWIDTH 7 0
+BBX 4 16 2 -25
+BITMAP
+f0
+f0
+f0
+f0
+00
+00
+00
+00
+00
+00
+00
+00
+f0
+f0
+f0
+f0
+ENDCHAR
+ENDFONT

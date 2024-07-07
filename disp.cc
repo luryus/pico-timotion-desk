@@ -14,6 +14,51 @@
 
 #define U8G2 (&u8g2_)
 
+/*
+  Fontname: DeskFontNum32
+  Copyright: Designer of this font retains full rights under the law
+  Glyphs: 16/16
+  BBX Build Mode: 0
+*/
+static const uint8_t desk_font_32n[241] U8G2_FONT_SECTION("desk_font_32n") = 
+  "\20\0\4\6\4\6\5\6\6\21 \0\340\0\0\0\0\0\0\0\0\0\324+\17\314H\245%\2\22#"
+  "\30\21\220\30\1\0,\7D\310\340\4\10-\7\71H\247\205\15.\7D\310\340\4\10/\6\0@\260"
+  "\5\60\17\17J`\206\37\4\16\371\377\377\335\17\2\61\11\4v`\206\77\20\0\62\21\17J`\206\37"
+  "\60\226\370\333\37P\226\370[\36\63\21\17J`\6\336\22\377IsK\374\333\37\4\0\64\20\17J`"
+  "\6\302!\377\357~\20X\342\377\3\65\21\17J`\206\37\4\226\370\267\274%\376\355\17\2\66\21\17J"
+  "`\206\37\17\377\370\7\201C\376\335\17\2\67\14\17J`\6\336\22\377\377\377\7\70\23\17J`\206\37"
+  "\4\16\371w\77(\34\362\357~\20\0\71\23\17J`\206\37\4\16\371w\77\10,\361o\177\20\0:"
+  "\12\4\311\343\4\310\3\11\4\0\0\0\4\377\377\0";
+
+static const uint8_t ARROW_WIDTH = 16;
+static const uint8_t ARROW_HEIGHT = 10;
+// XBM bitmap
+static const uint8_t UP_ARROW[20] = {
+   0x80, 0x01, 
+   0xc0, 0x03, 
+   0xe0, 0x07, 
+   0xf0, 0x0f, 
+   0xf8, 0x1f,
+   0xfc, 0x3f,
+   0x3e, 0x7c, 
+   0x03, 0xc0, 
+   0x00, 0x00, 
+   0x00, 0x00,
+};
+static const uint8_t DOWN_ARROW[20] = {
+   0x00, 0x00, 
+   0x00, 0x00,
+   0x03, 0xc0, 
+   0x3e, 0x7c, 
+   0xfc, 0x3f,
+   0xf8, 0x1f,
+   0xf0, 0x0f, 
+   0xe0, 0x07, 
+   0xc0, 0x03, 
+   0x80, 0x01, 
+};
+
+
 Display::Display(uint8_t sda, uint8_t scl, i2c_inst_t *i2c)
     : sda_(sda), scl_(scl), i2c_(i2c)
 {
@@ -62,13 +107,24 @@ void Display::run()
     }
 }
 
+Display::DisplayState const &Display::current_display_state() const
+{
+    return state_;
+}
+
 void Display::draw()
 {
-    static uint8_t thing = 0;
     DisplayState state;
+    std::optional<Notification> valid_notification = std::nullopt;
 
     // Take a copy of the state
     mutex_enter_blocking(&mutex_);
+    // Advance the notification timer while inside the mutex
+    if (state_.timed_notification && state_.timed_notification->advance()) {
+        valid_notification = state_.timed_notification;
+    } else {
+        state_.timed_notification.reset();
+    }
     state = state_;
     mutex_exit(&mutex_);
 
@@ -85,9 +141,6 @@ void Display::draw()
     u8g2_SetFont(U8G2, u8g2_font_t0_14_mr);
     u8g2_SetDrawColor(U8G2, 1);
 
-    thing++;
-    u8g2_DrawBox(U8G2, thing % 128, 31, 1, 1);
-
     if (state.waking_desk)
     {
         u8g2_DrawStr(U8G2, 0, 20, "Waking desk...");
@@ -99,27 +152,85 @@ void Display::draw()
     }
 
     else {
-        u8g2_SetFont(U8G2, u8g2_font_maniac_tn);
+        u8g2_SetFont(U8G2, desk_font_32n);
         auto height_str = string_format("%d", state.desk_state.height_cm()).value_or("");
-        u8g2_DrawStr(U8G2, 12, 32, height_str.c_str());
+        u8g2_DrawStr(U8G2, 0, 0, height_str.c_str());
 
         u8g2_SetFont(U8G2, u8g2_font_t0_11_mr);
-        u8g2_DrawStr(U8G2, 60, 12, MoveStateMachine::state_str(state.move_state));
-        if (state.move_dir.has_value()) {
-            u8g2_DrawStr(U8G2, 100, 12, MoveStateMachine::dir_str(state.move_dir.value()));
+
+        if (state.move_state != MoveStateMachine::State::Idle) {
+            u8g2_DrawStr(U8G2, 60, 12, MoveStateMachine::state_str(state.move_state));
+            if (state.target_height.has_value())
+            {
+                auto target_height_str = string_format("to %d", *state.target_height).value_or("");
+                u8g2_DrawStr(U8G2, 60, 26, target_height_str.c_str());
+            }
+            if (state.move_dir.has_value())
+            {
+                if (!state.target_height.has_value())
+                {
+                    u8g2_DrawStr(U8G2, 60, 26, MoveStateMachine::dir_str(state.move_dir.value()));
+                }
+
+                switch (*state.move_dir) {
+                case MoveStateMachine::Dir::Up:
+                    draw_up_anim();
+                    break;
+                case MoveStateMachine::Dir::Down:
+                    draw_down_anim();
+                    break;
+                }
+            } 
+        } else {
+            // The desk is idle. Show notification if present
+            if (valid_notification) {
+                switch (valid_notification->type()) {
+                    case Notification::Type::Stored:
+                        uint8_t slot = valid_notification->param();
+                        u8g2_DrawStr(U8G2, 60, 12, "Stored to");
+                        auto slot_str = string_format("slot %d", slot).value_or("");
+                        u8g2_DrawStr(U8G2, 60, 26, slot_str.c_str());
+                        break;
+                }
+            }
         }
-        /*
-        if (state.desk_state.is_store_completed())
-        {
-            u8g2_DrawStr(U8G2, 64, 32, "Store OK!");
-        }
-        else if (state.desk_state.is_waiting_store())
-        {
-            u8g2_DrawStr(U8G2, 64, 32, "Store where?");
-        }*/
+
     }
 
     u8g2_SendBuffer(U8G2);
+}
+
+void Display::draw_anim(int8_t anim_dir, const uint8_t* bitmap)
+{
+    static uint8_t frame = 0;
+
+    const uint8_t x = 128 - ARROW_WIDTH - 8;
+    const uint8_t h = 32; // Display height
+
+    for (uint8_t i = 0; i < h; i += ARROW_HEIGHT) {
+        int8_t y = i - frame;
+        uint8_t arrow_height = ARROW_HEIGHT;
+        uint8_t bitmap_start_offset = 0;
+        while (y < 0) {
+            y++;
+            arrow_height--;
+            bitmap_start_offset += 2;
+        }
+
+        u8g2_DrawXBMP(U8G2, x, y, ARROW_WIDTH, arrow_height, bitmap + bitmap_start_offset);
+    }
+
+    frame = (frame + 10 + anim_dir) % 10;
+}
+
+void Display::draw_up_anim()
+{
+    draw_anim(1, UP_ARROW);
+}
+
+void Display::draw_down_anim()
+{
+    draw_anim(-1, DOWN_ARROW);
 }
 
 void Display::set_sleep_state(bool sleep_state)

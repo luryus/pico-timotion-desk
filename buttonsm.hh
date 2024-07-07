@@ -20,6 +20,7 @@ public:
     };
 
     void tick(bool is_pressed);
+    void force_idle();
     ButtonEvent event() const;
 
 private:
