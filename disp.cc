@@ -177,6 +177,7 @@ void Display::draw()
                     draw_up_anim();
                     break;
                 case MoveStateMachine::Dir::Down:
+                case MoveStateMachine::Dir::Calibration:
                     draw_down_anim();
                     break;
                 }

@@ -7,6 +7,7 @@
 
 #define DESK_CMD_UP 0x02
 #define DESK_CMD_DOWN 0x01
+#define DESK_CMD_CALIBRATION (DESK_CMD_UP | DESK_CMD_DOWN)
 #define DESK_CMD_STOP 0x00
 
 using State = MoveStateMachine::State;
@@ -64,6 +65,22 @@ void MoveStateMachine::start_auto_move(uint8_t target_height, uint8_t current_he
     change_state(State::Initializing);
 }
 
+void MoveStateMachine::start_calibration_move()
+{
+    auto manual_move_dir = is_manual_moving();
+    bool current_state_valid = current_state_ == State::Idle
+        || (manual_move_dir && *manual_move_dir != Dir::Calibration);
+
+    if (!current_state_valid) {
+        LOGD("Cannot start calibration move because the current state is invalid for that");
+        return;
+    }
+
+    reset_fields();
+    move_dir_ = Dir::Calibration;
+    change_state(State::Initializing);
+}
+
 std::optional<Dir> MoveStateMachine::is_manual_moving() const
 {
     if (current_state_ == State::Moving && !target_height_.has_value()) {
@@ -93,12 +110,14 @@ uint8_t MoveStateMachine::get_send_msg() const
     switch (current_state_)
     {
     case State::Moving:
-        if (move_dir_.value_or(Dir::Up) == Dir::Up)
-        {
+        // State validation should make sure that move_dir_ has a value set
+        switch (move_dir_.value()) {
+        case Dir::Up:
             return DESK_CMD_UP;
-        }
-        else
-        {
+        case Dir::Calibration:
+            return DESK_CMD_CALIBRATION;
+        case Dir::Down:
+        default:
             return DESK_CMD_DOWN;
         }
 
@@ -260,10 +279,11 @@ bool MoveStateMachine::validate_state()
             }
         }
 
-        if (time_reached(delayed_by_ms(*last_height_change_, 2000)))
+        int move_timeout_ms = dir == Dir::Calibration ? 20'000 : 2'000;
+        if (time_reached(delayed_by_ms(*last_height_change_, move_timeout_ms)))
         {
             is_error = true;
-            LOGE("State::Moving: desk height not changed in 2s");
+            LOGE("State::Moving: desk height not changed in %d ms", move_timeout_ms);
         }
 
         break;
@@ -293,39 +313,13 @@ bool MoveStateMachine::validate_state()
 
 void MoveStateMachine::change_state(State new_state)
 {
-    const char *state_str = nullptr;
-    switch (new_state)
-    {
-    case State::Idle:
-        state_str = "Idle";
-        break;
-    case State::Initializing:
-        state_str = "Initializing";
-        break;
-    case State::Moving:
-        state_str = "Moving";
-        break;
-    case State::Stopping:
-        state_str = "Stopping";
-        break;
-    case State::Recovering:
-        state_str = "Recovering";
-        break;
-    case State::Error:
-        state_str = "Error";
-        break;
-    default:
-        state_str = "???";
-        break;
-    }
-
     if (new_state == current_state_)
     {
-        LOGD("change_state called unnecessarily: already in state %s", state_str);
+        LOGD("change_state called unnecessarily: already in state %s", state_str(new_state));
         return;
     }
 
-    LOGI("Moving to state: %s", state_str);
+    LOGI("Moving to state: %s", state_str(new_state));
     current_state_ = new_state;
     validate_state();
 }
@@ -380,6 +374,9 @@ const char* MoveStateMachine::dir_str(Dir dir) {
         break;
     case Dir::Down:
         dir_str = "Down";
+        break;
+    case Dir::Calibration:
+        dir_str = "Calib";
         break;
     default:
         dir_str = "???";

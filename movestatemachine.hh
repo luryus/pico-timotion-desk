@@ -19,13 +19,14 @@ public:
     };
 
     enum class Dir : uint8_t {
-        Up, Down
+        Up, Down, Calibration
     };
 
     State state() const;
 
     void start_auto_move(uint8_t target_height, uint8_t current_height);
     void start_manual_move(Dir dir);
+    void start_calibration_move();
     void stop();
     bool is_error() const;
     void clear_error();

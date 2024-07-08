@@ -203,6 +203,7 @@ int main()
     MoveStateMachine move_state_machine;
     std::array<ButtonSm, BUTTONS_COUNT> buttons;
     bool ignore_key_events_until_all_keys_idle = false;
+    bool showing_error = false;
 
     for (;;)
     {
@@ -276,6 +277,7 @@ int main()
                     {
                         btn.force_idle();
                     }
+                    any_button_down = false;
                 }
                 else
                 {
@@ -307,15 +309,31 @@ int main()
                 auto m0_event = buttons[Buttons::Mem0].event();
                 auto m1_event = buttons[Buttons::Mem1].event();
                 
-                auto manual_dir = move_state_machine.is_manual_moving();
+                auto manual_moving_dir = move_state_machine.is_manual_moving();
 
-                if (up_event == ButtonSm::ButtonEvent::Idle && manual_dir && *manual_dir == MoveStateMachine::Dir::Up)
+                auto up_down_long_press_active = down_event == ButtonSm::ButtonEvent::LongPressDown && up_event == ButtonSm::ButtonEvent::LongPressDown;
+
+                // Stop if currently manually moving up and up key not pressed
+                if (up_event == ButtonSm::ButtonEvent::Idle && manual_moving_dir && *manual_moving_dir == MoveStateMachine::Dir::Up)
                 {
                     move_state_machine.stop();
                 }
-                else if (down_event == ButtonSm::ButtonEvent::Idle && manual_dir && *manual_dir == MoveStateMachine::Dir::Down)
+                // Stop if currently manually moving down and down key not pressed
+                else if (down_event == ButtonSm::ButtonEvent::Idle && manual_moving_dir && *manual_moving_dir == MoveStateMachine::Dir::Down)
                 {
                     move_state_machine.stop();
+                }
+                // Stop if calibration moving and either of up/down is not pressed
+                else if (!up_down_long_press_active && manual_moving_dir && *manual_moving_dir == MoveStateMachine::Dir::Calibration)
+                {
+                    move_state_machine.stop();
+                }
+                // If both up/down are pressed and desk is idle or manual moving, start calibration.
+                // Note that start_calibration_move() does some further status checks
+                else if (up_down_long_press_active &&
+                    (move_state_machine.state() == MoveStateMachine::State::Idle || (manual_moving_dir && *manual_moving_dir != MoveStateMachine::Dir::Calibration)))
+                {
+                    move_state_machine.start_calibration_move();
                 }
                 else if (move_state_machine.state() == MoveStateMachine::State::Idle && down_event == ButtonSm::ButtonEvent::LongPressDown)
                 {
@@ -354,8 +372,14 @@ int main()
                     timed_notif = Display::Notification(Display::Notification::Type::Stored, 1);
                     memslots_log();
                 }
-                else if (move_state_machine.is_error() && any_button_down) {
+                else if (move_state_machine.is_error() && !showing_error) {
+                    // First error. Start waiting for a new key press
+                    showing_error = true;
                     ignore_key_events_until_all_keys_idle = true;
+                }
+                else if (move_state_machine.is_error() && any_button_down && showing_error) {
+                    ignore_key_events_until_all_keys_idle = true;
+                    showing_error = false;
                     move_state_machine.clear_error();
                 }
 
