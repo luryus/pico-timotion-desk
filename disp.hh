@@ -55,6 +55,7 @@ private:
     void draw_up_anim();
     void draw_down_anim();
     void draw_anim(int8_t anim_dir, const uint8_t* bitmap);
+    void draw_boot_screen();
     static uint8_t pico_u8g2_byte_i2c(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
     static uint8_t pico_u8g2_delay_cb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, __attribute__((unused)) void *arg_ptr);
 

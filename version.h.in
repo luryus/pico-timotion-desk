@@ -1,0 +1,7 @@
+#if !defined(GIT_SHA1__H)
+#define GIT_SHA1__H
+
+#define DESK_VERSION_GIT_SHA "@GIT_SHA1@"
+#define DESK_VERSION "@PROJECT_VERSION@"
+
+#endif // GIT_SHA1__H

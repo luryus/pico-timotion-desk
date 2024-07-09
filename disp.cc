@@ -8,6 +8,7 @@
 
 #include "log.hh"
 #include "string_format.hh"
+#include "version.h"
 
 #define FPS 20
 #define FRAME_DURATION_US (1'000'000 / FPS)
@@ -74,7 +75,27 @@ void Display::init() {
     u8g2_SetPowerSave(U8G2, false);
 
     u8g2_ClearDisplay(U8G2);
+
+    draw_boot_screen();
     initialized_ = true;
+}
+
+void Display::draw_boot_screen()
+{
+    u8g2_ClearBuffer(U8G2);
+    u8g2_SetDrawColor(U8G2, 1);
+
+    u8g2_SetFont(U8G2, u8g2_font_streamline_hand_signs_t);
+    u8g2_DrawGlyph(U8G2, 0, 24, 61 /* Streamline rock on */);
+
+    u8g2_SetFont(U8G2, u8g2_font_t0_11_mr);
+    u8g2_DrawStr(U8G2, 24, 12, "Desk Controller");
+
+    auto version_str = string_format("%s (%.6s)", DESK_VERSION, DESK_VERSION_GIT_SHA).value_or("");
+
+    u8g2_DrawStr(U8G2, 24, 24, version_str.c_str());
+
+    u8g2_SendBuffer(U8G2);
 }
 
 void Display::post_display_state(DisplayState state)
