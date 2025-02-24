@@ -270,13 +270,19 @@ int main()
 
             if (ignore_key_events_until_all_keys_idle)
             {
+                // First clear all state machines. This handles this situation
+                // - a button was shortly pressed to wake up the desk
+                // - when wakeup was requested, ignore_key_events_until_all_keys_idle was set
+                // - the button state machine went non-idle
+                // - the first time we hit this if block after wake, the physical button
+                //   is no longer pressed but the state machine is not idle --> a press is detected
+                for (auto& btn : buttons)
+                {
+                    btn.force_idle();
+                }
+
                 if (any_button_down)
                 {
-                    // A key is still pressed. Transform all key events to Idle
-                    for (auto& btn : buttons)
-                    {
-                        btn.force_idle();
-                    }
                     any_button_down = false;
                 }
                 else
@@ -299,6 +305,11 @@ int main()
                 LOGD("Trying to wake desk");
                 ignore_key_events_until_all_keys_idle = true;
                 wake_desk();
+                // Don't do anything on the same iteration that the desk was woken up
+                // Waking might have taken a long time and the button state could be different.
+                // It's best to just run the loop again.
+                LOGD("Desk is awakened");
+                break;
             }
 
             if (desk_state.is_awake())

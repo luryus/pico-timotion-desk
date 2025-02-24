@@ -23,7 +23,7 @@ void ButtonSm::tick(bool is_pressed)
         {
             next(State::Release1Pending);
         }
-        else if (time_in_current_state_ms() > 1000)
+        else if (time_in_current_state_ms() > 2000)
         {
             next(State::LongPressStart);
         }
@@ -43,7 +43,7 @@ void ButtonSm::tick(bool is_pressed)
         {
             next(State::DoublePress);
         }
-        else if (time_in_current_state_ms() > 1000)
+        else if (time_in_current_state_ms() > 2000)
         {
             next(State::DoubleLongPress);
         }
