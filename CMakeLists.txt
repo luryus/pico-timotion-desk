@@ -5,7 +5,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules")
 include(pico-sdk/pico_sdk_init.cmake)
 include(GetGitRevisionDescription)
 
-project(desk VERSION 0.1)
+project(desk VERSION 0.2)
 
 pico_sdk_init()
 
