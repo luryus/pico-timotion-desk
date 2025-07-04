@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.20)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules")
 
@@ -16,11 +16,11 @@ file(GLOB U8G2_SRC_FILES CONFIGURE_DEPENDS ${U8G2_SRC_PATH}/*.c)
 
 
 get_git_head_revision(GIT_REFSPEC GIT_SHA1)
-configure_file("version.h.in" "version.h" @ONLY)
+configure_file("src/version.h.in" "src/version.h" @ONLY)
 
+file(GLOB DESK_SRC_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc)
 set(SOURCE_FILES
-  main.cc deskstate.cc deskcmd.cc disp.cc movestatemachine.cc buttonsm.cc
-  memslots.cc
+  ${DESK_SRC_FILES}
   ${U8G2_SRC_FILES}
 )
 
