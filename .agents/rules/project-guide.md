@@ -23,3 +23,9 @@ This project is a Raspberry Pi Pico RP2040 based standing desk controller. Built
 - All change work must be done in a separate Git branch
 - Changes MUST NEVER EVER be pushed to git - only humans have the permission to do that
 - Commit messages must concisely describe the change in the commit. Prefer one-line commit messages.
+
+## Building the project
+
+- Go to the build/ directory and run `ninja all`
+- If the build directory does not exist, or ninja errors out due to a build config error, run `cmake .` inside the build dir
+- NEVER EVER try to remove the build directory to "clean" the state - just ask a human to resolve the build error then.
