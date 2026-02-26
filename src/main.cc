@@ -59,6 +59,11 @@ enum Buttons {
 };
 static const int BUTTONS_COUNT = 4;
 
+static bool is_directional_button(int index)
+{
+    return index == Buttons::Up || index == Buttons::Down;
+}
+
 void desk_serial_rx_isr()
 {
     while (uart_is_readable(DESK_UART))
@@ -193,6 +198,7 @@ int main()
     absolute_time_t wake_started_at;
     MoveStateMachine move_state_machine;
     std::array<ButtonSm, BUTTONS_COUNT> buttons;
+    std::array<bool, BUTTONS_COUNT> suppress_until_released{};
     bool ignore_key_events_until_all_keys_idle = false;
     bool showing_error = false;
 
@@ -258,18 +264,19 @@ int main()
 
         case MainLoopState::Waking:
         {
+            bool woke_up = false;
             critical_section_enter_blocking(&desk_rx_cmd_crit_section);
             if (desk_rx_cmd.is_ready())
             {
                 desk_state.update(desk_rx_cmd);
                 gpio_put(GPIO_DESK_SLEEP, true);
-                main_loop_state = MainLoopState::Main;
                 LOGI("Desk woke up");
+                woke_up = true;
             }
             gpio_put(GPIO_LED, false);
             critical_section_exit(&desk_rx_cmd_crit_section);
 
-            if (main_loop_state == MainLoopState::Waking &&
+            if (!woke_up &&
                 time_reached(delayed_by_ms(wake_started_at, WAKE_TIMEOUT_MS)))
             {
                 LOGW("Wake timeout");
@@ -277,6 +284,33 @@ int main()
                 for (auto& btn : buttons) {
                     btn.force_idle();
                     btn.consume();
+                }
+                suppress_until_released.fill(false);
+                main_loop_state = MainLoopState::Main;
+                break;
+            }
+
+            if (woke_up)
+            {
+                // Apply per-button wake suppression policy
+                uint8_t wake_keys = last_read_keys;
+                for (size_t i = 0; i < buttons.size(); i++)
+                {
+                    bool held = static_cast<bool>(wake_keys & (1 << i));
+                    if (held && !is_directional_button(i))
+                    {
+                        // Mem buttons held through wake: suppress until released
+                        suppress_until_released[i] = true;
+                        buttons[i].force_idle();
+                        buttons[i].consume();
+                    }
+                    else if (!held)
+                    {
+                        // Button released during wake: discard stale wake-trigger event
+                        buttons[i].consume();
+                    }
+                    // Directional buttons held through wake: let their
+                    // accumulated LongPress state flow through naturally
                 }
                 main_loop_state = MainLoopState::Main;
             }
@@ -302,6 +336,30 @@ int main()
                 }
             }
 
+            // Per-button wake suppression: clear flag when button is released,
+            // discard events while suppressed
+            {
+                uint8_t sup_keys = last_read_keys;
+                for (size_t i = 0; i < buttons.size(); i++)
+                {
+                    if (!suppress_until_released[i]) {
+                        sup_keys >>= 1;
+                        continue;
+                    }
+                    bool held = static_cast<bool>(sup_keys & 0x01);
+                    sup_keys >>= 1;
+                    if (!held)
+                    {
+                        suppress_until_released[i] = false;
+                    }
+                    else
+                    {
+                        buttons[i].force_idle();
+                        buttons[i].consume();
+                    }
+                }
+            }
+
             critical_section_enter_blocking(&desk_rx_cmd_crit_section);
             if (desk_rx_cmd.is_ready())
             {
@@ -313,7 +371,6 @@ int main()
             if (any_button_down && !desk_state.is_awake())
             {
                 LOGD("Trying to wake desk");
-                ignore_key_events_until_all_keys_idle = true;
                 gpio_put(GPIO_DESK_SLEEP, false);
                 wake_started_at = get_absolute_time();
                 main_loop_state = MainLoopState::Waking;
