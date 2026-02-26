@@ -21,6 +21,7 @@ public:
 
     void tick(bool is_pressed);
     void force_idle();
+    void consume();
     ButtonEvent event() const;
 
 private:

@@ -50,15 +50,11 @@ void ButtonSm::tick(bool is_pressed)
         break;
     
     case State::LongPressStart:
-        next(State::LongPress);
-        goto long_press_end;
     case State::DoubleLongPressStart:
-        next(State::DoubleLongPress);
-        goto long_press_end;
+        break;
 
     case State::LongPress:
     case State::DoubleLongPress:
-    long_press_end:
         if (!is_pressed)
         {
             next(State::Idle);
@@ -67,7 +63,6 @@ void ButtonSm::tick(bool is_pressed)
 
     case State::ShortPress:
     case State::DoublePress:
-        next(State::Idle);
         break;
     }
 }
@@ -75,6 +70,25 @@ void ButtonSm::tick(bool is_pressed)
 void ButtonSm::force_idle()
 {
     next(State::Idle);
+}
+
+void ButtonSm::consume()
+{
+    switch (state_)
+    {
+    case State::ShortPress:
+    case State::DoublePress:
+        next(State::Idle);
+        break;
+    case State::LongPressStart:
+        next(State::LongPress);
+        break;
+    case State::DoubleLongPressStart:
+        next(State::DoubleLongPress);
+        break;
+    default:
+        break;
+    }
 }
 
 ButtonEvent ButtonSm::event() const

@@ -394,6 +394,9 @@ int main()
                     move_state_machine.clear_error();
                 }
 
+                for (auto& btn : buttons) {
+                    btn.consume();
+                }
                 desk_send_cmd(move_state_machine.get_send_msg());
             }
         }
