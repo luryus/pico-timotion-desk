@@ -47,6 +47,7 @@ enum class MainLoopState : uint8_t
 {
     Init,
     WaitingDeskInit,
+    Waking,
     Main
 };
 
@@ -136,18 +137,7 @@ void core1_entry()
     display.run();
 }
 
-void wake_desk()
-{
-    gpio_put(GPIO_DESK_SLEEP, false);
-    for (int i = 0; i < 14; i++) {
-        if (desk_rx_cmd.is_ready()) {
-            break;
-        }
-        sleep_ms(100);
-    }
-    
-    gpio_put(GPIO_DESK_SLEEP, true);
-}
+static constexpr uint32_t WAKE_TIMEOUT_MS = 1400;
 
 void desk_send_cmd(uint8_t cmd)
 {
@@ -200,6 +190,7 @@ int main()
 
     MainLoopState main_loop_state = MainLoopState::Init, prev_main_loop_state = MainLoopState::Init;
     absolute_time_t init_time;
+    absolute_time_t wake_started_at;
     MoveStateMachine move_state_machine;
     std::array<ButtonSm, BUTTONS_COUNT> buttons;
     bool ignore_key_events_until_all_keys_idle = false;
@@ -216,12 +207,23 @@ int main()
 
         std::optional<Display::Notification> timed_notif = std::nullopt;
 
+        // Tick buttons in all states so they stay accurate during wake
+        uint8_t keys_now = last_read_keys;
+        bool any_button_down = false;
+        for (size_t i = 0; i < buttons.size(); i++)
+        {
+            auto key_down = static_cast<bool>(keys_now & 0x01);
+            buttons[i].tick(key_down);
+            keys_now >>= 1;
+            any_button_down |= key_down;
+        }
+
         switch (main_loop_state)
         {
         case MainLoopState::Init:
         {
             init_time = get_absolute_time();
-            wake_desk();
+            gpio_put(GPIO_DESK_SLEEP, false);
             main_loop_state = MainLoopState::WaitingDeskInit;
             break;
         }
@@ -234,6 +236,7 @@ int main()
             if (desk_rx_cmd.is_ready())
             {
                 desk_state.update(desk_rx_cmd); // This will reset the cmd
+                gpio_put(GPIO_DESK_SLEEP, true);
                 main_loop_state = MainLoopState::Main;
                 LOGI("Got initial message from desk, starting main loop");
                 ready = true;
@@ -246,36 +249,44 @@ int main()
             if (!ready && time_reached(delayed_by_ms(init_time, 20'000)))
             {
                 LOGW("Waited for desk init over 20s, resetting...");
+                gpio_put(GPIO_DESK_SLEEP, true);
                 main_loop_state = MainLoopState::Init;
             }
 
             break;
         }
 
+        case MainLoopState::Waking:
+        {
+            critical_section_enter_blocking(&desk_rx_cmd_crit_section);
+            if (desk_rx_cmd.is_ready())
+            {
+                desk_state.update(desk_rx_cmd);
+                gpio_put(GPIO_DESK_SLEEP, true);
+                main_loop_state = MainLoopState::Main;
+                LOGI("Desk woke up");
+            }
+            gpio_put(GPIO_LED, false);
+            critical_section_exit(&desk_rx_cmd_crit_section);
+
+            if (main_loop_state == MainLoopState::Waking &&
+                time_reached(delayed_by_ms(wake_started_at, WAKE_TIMEOUT_MS)))
+            {
+                LOGW("Wake timeout");
+                gpio_put(GPIO_DESK_SLEEP, true);
+                for (auto& btn : buttons) {
+                    btn.force_idle();
+                    btn.consume();
+                }
+                main_loop_state = MainLoopState::Main;
+            }
+            break;
+        }
+
         case MainLoopState::Main:
         {
-            uint8_t keys_now = last_read_keys;
-
-            // True if any button is currently pressed. This is determined separately from
-            // key events so that we get smaller latencies for stopping the desk from moving
-            bool any_button_down = false;
-
-            for (size_t i = 0; i < buttons.size(); i++)
-            {
-                auto key_down = static_cast<bool>(keys_now & 0x01);
-                buttons[i].tick(key_down);
-                keys_now >>= 1;
-                any_button_down |= key_down;
-            }
-
             if (ignore_key_events_until_all_keys_idle)
             {
-                // First clear all state machines. This handles this situation
-                // - a button was shortly pressed to wake up the desk
-                // - when wakeup was requested, ignore_key_events_until_all_keys_idle was set
-                // - the button state machine went non-idle
-                // - the first time we hit this if block after wake, the physical button
-                //   is no longer pressed but the state machine is not idle --> a press is detected
                 for (auto& btn : buttons)
                 {
                     btn.force_idle();
@@ -287,7 +298,6 @@ int main()
                 }
                 else
                 {
-                    // All keys are idle. Unset the ignore flag and proceed with normal operations
                     ignore_key_events_until_all_keys_idle = false;
                 }
             }
@@ -304,11 +314,9 @@ int main()
             {
                 LOGD("Trying to wake desk");
                 ignore_key_events_until_all_keys_idle = true;
-                wake_desk();
-                // Don't do anything on the same iteration that the desk was woken up
-                // Waking might have taken a long time and the button state could be different.
-                // It's best to just run the loop again.
-                LOGD("Desk is awakened");
+                gpio_put(GPIO_DESK_SLEEP, false);
+                wake_started_at = get_absolute_time();
+                main_loop_state = MainLoopState::Waking;
                 break;
             }
 
@@ -415,7 +423,7 @@ int main()
             move_state_machine.state(),
             move_dir,
             move_state_machine.target_height(),
-            (main_loop_state == MainLoopState::Init || main_loop_state == MainLoopState::WaitingDeskInit),
+            (main_loop_state == MainLoopState::Init || main_loop_state == MainLoopState::WaitingDeskInit || main_loop_state == MainLoopState::Waking),
             timed_notif,    
         });
 
