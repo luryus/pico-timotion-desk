@@ -11,6 +11,11 @@ This project is a Raspberry Pi Pico RP2040 based standing desk controller. Built
 - RP2040 that communicates over UART to the desk
 - The user can store desk heights as "presets" and the controller can auto-drive itself to the stored height when the user asks to.
 
+## Repo structure
+- Code under src/. Some files in the root layer are also included in the build (linker memory map, RP2040 PIO file, ...)
+- Build results go to build/
+- pico-sdk and u8g2 are libraries imported as git submodules, never make changes to those!
+
 ## Code Style
 
 - Comments used only when they are needed to actually explain something. Prefer functions and self-documenting code.
