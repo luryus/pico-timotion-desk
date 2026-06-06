@@ -10,7 +10,12 @@ template <typename T, std::size_t N>
 class RingBuffer {
 
 public:
-    RingBuffer() : buffer_(new T[N]) {}
+    RingBuffer() : buffer_(new std::optional<T>[N]) {}
+
+    RingBuffer(const RingBuffer&) = delete;
+    RingBuffer& operator=(const RingBuffer&) = delete;
+    RingBuffer(RingBuffer&&) noexcept = default;
+    RingBuffer& operator=(RingBuffer&&) noexcept = default;
 
     std::size_t size() const { return size_; }
     std::size_t capacity() const { return N; }
@@ -18,19 +23,17 @@ public:
     bool empty() const { return size_ == 0; }
     void clear()
     {
-        for (auto i = size_ - 1; i >= 0; i--) {
-            std::destroy_at(&buffer_[buffer_idx(i)]);
+        while (size_ > 0) {
+            pop_back();
         }
-        
-        size_ = 0;
         start_ = 0;
-
     }
 
     std::optional<std::reference_wrapper<const T>> at(std::size_t pos) const
     {
         if (pos < size_) {
-            return std::make_optional(std::reference_wrapper(buffer_[buffer_idx(pos)]));
+            const auto ref = std::reference_wrapper(*buffer_[buffer_idx(pos)]);
+            return std::make_optional(ref);
         }
 
         return std::nullopt;
@@ -52,7 +55,7 @@ public:
         if (full()) {
             return false;
         }
-        buffer_[buffer_idx(size_)] = std::move(elem);
+        buffer_[buffer_idx(size_)].emplace(std::move(elem));
         size_++;
         return true;
     }
@@ -62,7 +65,8 @@ public:
         if (empty()) {
             return false;
         }
-        auto elem = std::destroy_at(&buffer_[buffer_idx(size_)]);
+
+        buffer_[buffer_idx(size_ - 1)].reset();
         size_--;
         return true;
     }
@@ -72,16 +76,16 @@ public:
         if (empty()) {
             return false;
         }
-        std::destroy_at(&buffer_[buffer_idx(size_)]);
-        size_--;
+        buffer_[buffer_idx(0)].reset();
         start_ = (start_ + 1) % N;
+        size_--;
         return true;
     }
 
 private:
     std::size_t buffer_idx(std::size_t pos) const { return (pos + start_) % N; }
 
-    std::unique_ptr<T[]> buffer_;
+    std::unique_ptr<std::optional<T>[]> buffer_;
     std::size_t size_ = 0;
     std::size_t start_ = 0;
 };
