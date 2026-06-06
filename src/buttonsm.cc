@@ -15,7 +15,7 @@ void ButtonSm::tick(bool is_pressed)
         }
         break;
     case State::Press1Pending:
-        if (!is_pressed && time_in_current_state_ms() < 300)
+        if (!is_pressed && time_in_current_state_ms() < ShortPressMs)
         {
             next(State::Idle);
         }
@@ -23,7 +23,7 @@ void ButtonSm::tick(bool is_pressed)
         {
             next(State::Release1Pending);
         }
-        else if (time_in_current_state_ms() > 2000)
+        else if (time_in_current_state_ms() > long_press_limit_ms_)
         {
             next(State::LongPressStart);
         }
@@ -33,7 +33,7 @@ void ButtonSm::tick(bool is_pressed)
         {
             next(State::Press2Pending);
         }
-        else if (time_in_current_state_ms() > 300)
+        else if (time_in_current_state_ms() > ShortPressMs)
         {
             next(State::ShortPress);
         }
@@ -43,7 +43,7 @@ void ButtonSm::tick(bool is_pressed)
         {
             next(State::DoublePress);
         }
-        else if (time_in_current_state_ms() > 2000)
+        else if (time_in_current_state_ms() > long_press_limit_ms_)
         {
             next(State::DoubleLongPress);
         }

@@ -197,7 +197,12 @@ int main()
     absolute_time_t init_time;
     absolute_time_t wake_started_at;
     MoveStateMachine move_state_machine;
-    std::array<ButtonSm, BUTTONS_COUNT> buttons;
+    std::array<ButtonSm, BUTTONS_COUNT> buttons = {
+        ButtonSm::preset_button(),
+        ButtonSm::preset_button(),
+        ButtonSm::direction_button(),
+        ButtonSm::direction_button()
+    };
     std::array<bool, BUTTONS_COUNT> suppress_until_released{};
     bool ignore_key_events_until_all_keys_idle = false;
     bool showing_error = false;
